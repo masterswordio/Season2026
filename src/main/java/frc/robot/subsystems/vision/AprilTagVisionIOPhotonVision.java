@@ -54,7 +54,7 @@ public class AprilTagVisionIOPhotonVision implements VisionIO {
     inputs.connected = camera.isConnected();
 
     // Read new camera observations
-    Set<Short> tagIds = new HashSet<>();
+    Set<Short> allTagIds = new HashSet<>();
     List<PoseObservation> poseObservations = new ArrayList<>();
 
     var pipelineResults = camera.getAllUnreadResults(); // Call this ONCE per robot loop!
@@ -72,7 +72,7 @@ public class AprilTagVisionIOPhotonVision implements VisionIO {
         // Nothing seen, publish empty observation
         inputs.latestTargetObservation = new TargetObservation(new Rotation2d(), new Rotation2d());
       }
-
+      
       if (result.multitagResult.isPresent()) {
         // Process multi-tag estimations
         MultiTargetPNPResult multitagResult = result.multitagResult.get();
@@ -83,12 +83,14 @@ public class AprilTagVisionIOPhotonVision implements VisionIO {
         Pose3d robotPose = new Pose3d(fieldToRobot.getTranslation(), fieldToRobot.getRotation());
 
         // Calculate average tag distance
+        int resultTagCount = 0;
         double totalTagDistance = 0.0;
         for (PhotonTrackedTarget target : result.targets) {
           double distanceToTarget;
           if ((distanceToTarget = target.bestCameraToTarget.getTranslation().getNorm())
               < cameraConstants.cameraType().noisyDistance) {
             totalTagDistance += distanceToTarget;
+            resultTagCount++;
             // Add detected tag IDs
             tagIds.add((short) target.fiducialId);
           }
@@ -100,8 +102,8 @@ public class AprilTagVisionIOPhotonVision implements VisionIO {
                 result.getTimestampSeconds(), // Timestamp
                 robotPose, // 3D pose estimate
                 multitagResult.estimatedPose.ambiguity, // Ambiguity
-                tagIds.size(), // Tag count
-                totalTagDistance / tagIds.size() // Average tag distance
+                resultTagCount, // Tag count
+                totalTagDistance / resultTagCount // Average tag distance
                 ));
 
       } else if (!result.targets.isEmpty()) {
@@ -144,9 +146,9 @@ public class AprilTagVisionIOPhotonVision implements VisionIO {
     }
 
     // Save tag IDs to inputs
-    inputs.tagIds = new int[tagIds.size()];
+    inputs.tagIds = new int[allTagIds.size()];
     int i = 0;
-    for (int id : tagIds) {
+    for (int id : AllTagIds) {
       inputs.tagIds[i++] = id;
     }
   }
